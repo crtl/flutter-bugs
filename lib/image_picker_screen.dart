@@ -27,10 +27,21 @@ class _ImagePickerScreenState extends State<ImagePickerScreen> {
       initialized = false;
     });
 
+    if (_videoController != null) {
+      await _videoController.dispose();
+    }
+
     picker.getVideo(source: source).then((value) {
-      _normalizeVideoPath(value.path).then((path) {
+
+      if (value == null) {
+        return;
+      }
+
+      print("getVideo.result ${value.path}");
+      (source == ImageSource.gallery ? _normalizeVideoPath(value.path) : Future.value(value.path)).then((path) {
         setState(() {
           pickedFile = value;
+          print("path: $path");
           video = File(path);
           initializeVideoPlayer();
         });
@@ -39,6 +50,7 @@ class _ImagePickerScreenState extends State<ImagePickerScreen> {
   }
 
   Future<String> _normalizeVideoPath(String path) async {
+    print("_normalizeVideoPath $path");
     final input = File(path);
     final targetPath = input.path.replaceFirst("jpg", "mp4");
 
@@ -48,8 +60,6 @@ class _ImagePickerScreenState extends State<ImagePickerScreen> {
   }
 
   initializeVideoPlayer() async {
-    await (_videoController?.dispose() ?? Future.value());
-
 
     _videoController = VideoPlayerController.file(video);
     _videoController.setLooping(true);
