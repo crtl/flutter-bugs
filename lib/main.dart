@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
+//import "video_player_custom.dart" as custom;
+import 'package:video_player/video_player.dart' as custom;
 
 void main() => runApp(MyApp());
 
@@ -46,38 +47,79 @@ class MyHomePage extends StatefulWidget {
   _MyHomePageState createState() => _MyHomePageState();
 }
 
+typedef VideoControllerFactory = custom.VideoPlayerController Function();
+
 class _MyHomePageState extends State<MyHomePage> {
 
+  bool shouldProduceBug = false;
+
   final _videos = [
-    VideoPlayerController.network("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4"),
-    VideoPlayerController.network("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4"),
-    VideoPlayerController.network("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4"),
-    VideoPlayerController.network("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4"),
+    () => custom.VideoPlayerController.network("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4"),
+    () => custom.VideoPlayerController.network("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4"),
+    () => custom.VideoPlayerController.network("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4"),
+    () => custom.VideoPlayerController.network("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4"),
   ];
 
   int _currentIndex = -1;
 
-  VideoPlayerController _activeController;
+  custom.VideoPlayerController _previousController;
+  custom.VideoPlayerController _activeController;
 
-  final StreamController<VideoPlayerController> _streamController = StreamController.broadcast();
+  final StreamController<custom.VideoPlayerController> _streamController = StreamController.broadcast();
 
-  _changeVideo() async {
+
+  _incrementIndex() {
     _currentIndex++;
 
-    if (_currentIndex > _videos.length) {
+    if (_currentIndex >= _videos.length) {
       _currentIndex = 0;
     }
+  }
 
-    if (_activeController != null) {
-      await _activeController.dispose();
+  _changeVideoBug() async {
+    _incrementIndex();
+
+    _previousController = _activeController;
+    _activeController = _videos[_currentIndex]();
+
+    if (_previousController != null) {
+      await _previousController.dispose();
     }
 
-    _activeController = _videos[_currentIndex];
+    _initializeVideo(_activeController);
+  }
 
-    _activeController.initialize().then((_) {
-      _streamController.add(_activeController);
+  _changeVideoWorkaround() async {
+    _incrementIndex();
+
+    _previousController = _activeController;
+    _activeController = _videos[_currentIndex]();
+
+    if (_previousController != null) {
+      _previousController.pause();
+    }
+
+    _initializeVideo(_activeController).then((_) {
+      WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+        _previousController?.dispose();
+      });
     });
 
+  }
+
+  _changeVideo() {
+    if (shouldProduceBug) {
+      _changeVideoBug();
+    } else {
+      _changeVideoWorkaround();
+    }
+  }
+
+  Future _initializeVideo(custom.VideoPlayerController controller) {
+    return controller.initialize().then((_) {
+      controller.play();
+      _streamController.add(controller);
+    });
   }
 
   @override
@@ -102,16 +144,17 @@ class _MyHomePageState extends State<MyHomePage> {
         title: Text(widget.title),
       ),
       body: Center(
-        child: StreamBuilder<VideoPlayerController>(
+        child: StreamBuilder<custom.VideoPlayerController>(
           stream: _streamController.stream,
           builder: (_, snapshot) {
+            print("buildPlayer ${snapshot.data?.dataSource}");
             if (!snapshot.hasData) {
               return CircularProgressIndicator();
             }
 
             return AspectRatio(
               aspectRatio: snapshot.data.value.aspectRatio,
-              child: VideoPlayer(snapshot.data)
+              child: custom.VideoPlayer(snapshot.data)
             );
           },
         ),
